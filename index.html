@@ -301,14 +301,14 @@ function renderDistricts(){
     const c=ACC[acc]||ACC['unknown'];
     const hasGrads = counts[idx]>0;
 
-    // Polygon base layer
+    // Polygon base layer — uniform styling regardless of graduate presence
     const poly = L.geoJSON(feat,{
       style:{
         fillColor: c.fill,
-        fillOpacity: hasGrads ? 0.45 : 0.12,
+        fillOpacity: 0.35,
         color: c.border,
-        weight: hasGrads ? 1.4 : 0.8,
-        opacity: hasGrads ? 0.8 : 0.55,
+        weight: 0.8,
+        opacity: 0.6,
       }
     });
 
