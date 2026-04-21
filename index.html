@@ -590,8 +590,8 @@ uZ.addEventListener('drop',e=>{e.preventDefault();uZ.classList.remove('drag-over
 
 document.getElementById('dlTemplate').addEventListener('click',()=>{
   const ws=XLSX.utils.aoa_to_sheet([
-    ['Full Name','Current Position Level','City','District','Cross-border','Organization ','Cohort','Title ','Active/Yes/No','Phone','Email'],
-    ['Faadumo Abdi','District','Mogadishu','Hodan','No','MOH-Banadir','Cohort 7','Medical Doctor','Yes','252612000000','example@moh.gov.so'],
+    ['Full Name','Gender','Current Position Level','City','District','Cross-border','Organization ','Cohort','Title ','Active/Yes/No','Phone','Email'],
+    ['Faadumo Abdi','F','District','Mogadishu','Hodan','No','MOH-Banadir','Cohort 7','Medical Doctor','Yes','252612000000','example@moh.gov.so'],
   ]);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'FETP Graduates');
@@ -648,7 +648,8 @@ const HEADER_MAP = {
   'cohort':'cohort',
   'title ':'title','title':'title',
   'active/yes/no':'active','active':'active',
-  'phone':'phone','email':'email'
+  'phone':'phone','email':'email',
+  'gender':'gender'
 };
 
 function showBanner(msg, type){
