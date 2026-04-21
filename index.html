@@ -107,7 +107,15 @@ select:focus, input[type="text"]:focus { border-color: var(--accent2); }
     <div class="fg"><label class="fl">Cohort</label><select id="fCohort"><option value="">All Cohorts</option></select></div>
     <div class="fg"><label class="fl">Organization</label><select id="fOrg"><option value="">All Organizations</option></select></div>
     <div class="fg"><label class="fl">Status</label><select id="fActive"><option value="">All</option><option value="yes">Active</option><option value="no">Inactive</option></select></div>
-    <div class="fg" style="margin-bottom:0"><label class="fl">Cross-Border</label><select id="fCB"><option value="">All</option><option value="yes">Cross-Border</option><option value="no">Not Cross-Border</option></select></div>
+    <div class="fg"><label class="fl">Cross-Border</label><select id="fCB"><option value="">All</option><option value="yes">Cross-Border</option><option value="no">Not Cross-Border</option></select></div>
+    <div class="fg" style="margin-bottom:0"><label class="fl">Position Level</label><select id="fPosition">
+      <option value="">All Levels</option>
+      <option value="National">National</option>
+      <option value="Regional">Regional</option>
+      <option value="District">District</option>
+      <option value="Health Facility">Health Facility</option>
+      <option value="Other">Other</option>
+    </select></div>
   </div>
 
   <div class="sidebar-section">
@@ -443,12 +451,25 @@ function applyFilters(){
     if(ac==='no' && (g.active||'').toLowerCase()==='yes') return false;
     if(cb==='yes' && (g.crossBorder||'').toLowerCase()!=='yes') return false;
     if(cb==='no' && (g.crossBorder||'').toLowerCase()==='yes') return false;
+    // Position level filter — match loosely so 'District' catches 'District Surveillance Officer' etc.
+    const pos = document.getElementById('fPosition').value;
+    if(pos){
+      const pt = (g.position||'').toLowerCase();
+      const pl = pos.toLowerCase();
+      if(pl === 'other'){
+        // 'Other' = anything not matching the named levels
+        const named = ['national','regional','district','health facility'];
+        if(named.some(n => pt.includes(n))) return false;
+      } else {
+        if(!pt.includes(pl)) return false;
+      }
+    }
     return true;
   });
   renderMarkers(); renderList();
 }
 
-['fSearch','fCohort','fOrg','fActive','fCB'].forEach(id=>{
+['fSearch','fCohort','fOrg','fActive','fCB','fPosition'].forEach(id=>{
   document.getElementById(id).addEventListener('input',applyFilters);
   document.getElementById(id).addEventListener('change',applyFilters);
 });
