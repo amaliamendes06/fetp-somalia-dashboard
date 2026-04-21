@@ -108,13 +108,18 @@ select:focus, input[type="text"]:focus { border-color: var(--accent2); }
     <div class="fg"><label class="fl">Organization</label><select id="fOrg"><option value="">All Organizations</option></select></div>
     <div class="fg"><label class="fl">Status</label><select id="fActive"><option value="">All</option><option value="yes">Active</option><option value="no">Inactive</option></select></div>
     <div class="fg"><label class="fl">Cross-Border</label><select id="fCB"><option value="">All</option><option value="yes">Cross-Border</option><option value="no">Not Cross-Border</option></select></div>
-    <div class="fg" style="margin-bottom:0"><label class="fl">Position Level</label><select id="fPosition">
+    <div class="fg"><label class="fl">Position Level</label><select id="fPosition">
       <option value="">All Levels</option>
       <option value="National">National</option>
       <option value="Regional">Regional</option>
       <option value="District">District</option>
       <option value="Health Facility">Health Facility</option>
       <option value="Other">Other</option>
+    </select></div>
+    <div class="fg" style="margin-bottom:0"><label class="fl">Gender</label><select id="fGender">
+      <option value="">All</option>
+      <option value="M">Male (M)</option>
+      <option value="F">Female (F)</option>
     </select></div>
   </div>
 
@@ -375,7 +380,7 @@ function renderMarkers(){
     const m=L.marker(coords,{icon:makeIcon(g), zIndexOffset:1000}).addTo(map);
     const active=(g.active||'').toLowerCase()==='yes';
     const cb=(g.crossBorder||'').toLowerCase()==='yes';
-    m.bindTooltip(`<strong>${g.title||''} ${g.fullName}</strong><br>${g.district} · ${g.cohort||''}<br>${active?'● Active':'○ Inactive'}${cb?' · ✈ Cross-border':''}`,
+    m.bindTooltip(`<strong>${g.title||''} ${g.fullName}</strong><br>${g.district} · ${g.cohort||''}<br>${active?'● Active':'○ Inactive'}${cb?' · ✈ Cross-border':''}${g.gender?' · '+g.gender:''}`,
       {direction:'top',offset:[0,-8]});
     m.on('click',()=>{ selectedId=g.id; renderMarkers(); highlightList(g.id); });
     markerList.push(m);
@@ -396,6 +401,7 @@ function renderList(){
         <span>${g.district}</span>
         <span class="cohort-badge">${g.cohort||''}</span>
         <span class="active-dot ${active?'yes':'no'}">${active?'● Active':'○ Inactive'}</span>
+        ${g.gender ? '<span style="color:var(--muted)">· '+g.gender+'</span>' : ''}
       </div>
     </div>`;
   }).join('');
@@ -451,25 +457,27 @@ function applyFilters(){
     if(ac==='no' && (g.active||'').toLowerCase()==='yes') return false;
     if(cb==='yes' && (g.crossBorder||'').toLowerCase()!=='yes') return false;
     if(cb==='no' && (g.crossBorder||'').toLowerCase()==='yes') return false;
-    // Position level filter — match loosely so 'District' catches 'District Surveillance Officer' etc.
+    // Position level filter
     const pos = document.getElementById('fPosition').value;
     if(pos){
       const pt = (g.position||'').toLowerCase();
       const pl = pos.toLowerCase();
       if(pl === 'other'){
-        // 'Other' = anything not matching the named levels
         const named = ['national','regional','district','health facility'];
         if(named.some(n => pt.includes(n))) return false;
       } else {
         if(!pt.includes(pl)) return false;
       }
     }
+    // Gender filter
+    const gdr = document.getElementById('fGender').value;
+    if(gdr && (g.gender||'').toUpperCase() !== gdr.toUpperCase()) return false;
     return true;
   });
   renderMarkers(); renderList();
 }
 
-['fSearch','fCohort','fOrg','fActive','fCB','fPosition'].forEach(id=>{
+['fSearch','fCohort','fOrg','fActive','fCB','fPosition','fGender'].forEach(id=>{
   document.getElementById(id).addEventListener('input',applyFilters);
   document.getElementById(id).addEventListener('change',applyFilters);
 });
@@ -488,7 +496,7 @@ function parseRow(row){
     if(mapped) out[mapped]=String(v||'').trim();
   }
   if(!out.fullName) return null;
-  ['position','city','district','crossBorder','organization','cohort','title','phone','email']
+  ['position','city','district','crossBorder','organization','cohort','title','phone','email','gender']
     .forEach(k=>{ if(!out[k]) out[k]=''; });
   if(!out.active) out.active='Yes';
   const ar=(out.active||'').toLowerCase();
@@ -573,7 +581,7 @@ function renderStateLabels(){
 
 // Column order must match the sheet headers exactly
 const COL_ORDER = ['fullName','position','city','district','crossBorder',
-                   'organization','cohort','title','active','phone','email'];
+                   'organization','cohort','title','active','phone','email','gender'];
 
 // Map header row → internal field name
 const HEADER_MAP = {
@@ -625,7 +633,7 @@ async function loadFromSheet(){
       });
       if(!g.fullName) return;
       // Defaults
-      ['position','city','district','crossBorder','organization','cohort','title','phone','email']
+      ['position','city','district','crossBorder','organization','cohort','title','phone','email','gender']
         .forEach(k => { if(!g[k]) g[k] = ''; });
       if(!g.active) g.active = 'Yes';
       const ar = (g.active||'').toLowerCase();
