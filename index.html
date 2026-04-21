@@ -292,7 +292,7 @@ function renderDistricts(){
   polyLayers.forEach(l=>map.removeLayer(l));
   polyLayers=[];
 
-  const counts = buildDistrictCounts();
+  const counts = buildDistrictCounts(graduates); // always use full set for district fill
   const maxCount = Math.max(...Object.values(counts), 1);
 
   SOMALIA_GEOJSON.features.forEach((feat,idx)=>{
@@ -329,23 +329,49 @@ function renderDistricts(){
 
 
 // ── PROPORTIONAL CIRCLES ──────────────────────────────────────────────────────
+
+// For districts whose graduates all share a common parent name (e.g. "Banadir"),
+// aggregate them into one circle at a fixed centroid instead of per-sub-district
+const DISTRICT_AGGREGATE = {
+  // district value in data  → [lat, lng, label]
+  'banadir':    [2.047, 45.318],
+  'mogadishu':  [2.047, 45.318],
+};
+
+function buildAggregatedCounts(){
+  // Returns { key: { count, lat, lng } }
+  // key is either the shapefile feature idx (string) or a named aggregate key
+  const arr = filtered;
+  const byIdx = {};   // idx → count (normal districts)
+  const byAgg = {};   // aggregate key → count (Banadir etc.)
+
+  arr.forEach(g => {
+    const dn = (g.district||'').toLowerCase().trim();
+    if(DISTRICT_AGGREGATE[dn]){
+      byAgg[dn] = (byAgg[dn]||0) + 1;
+    } else {
+      const idx = findDistIdx(g.district);
+      if(idx != null) byIdx[idx] = (byIdx[idx]||0) + 1;
+    }
+  });
+  return { byIdx, byAgg };
+}
+
 function renderPropCircles(){
   propCircles.forEach(l=>map.removeLayer(l));
   propCircles=[];
-  const counts = buildDistrictCounts(); // uses filtered
-  if(!Object.keys(counts).length) return;
+  if(!filtered.length) return;
 
-  SOMALIA_GEOJSON.features.forEach((feat,idx)=>{
-    const p = feat.properties;
-    const n = counts[idx];
-    if(!n) return;
+  const { byIdx, byAgg } = buildAggregatedCounts();
+
+  function makeCircle(lat, lng, n){
     let radius;
     if      (n === 1) radius = 18000;
     else if (n <= 4)  radius = 28000;
     else if (n <= 7)  radius = 40000;
     else if (n <= 10) radius = 54000;
     else              radius = 70000;
-    const circle = L.circle([p.cy, p.cx],{
+    const circle = L.circle([lat, lng],{
       radius,
       color:'#1a4e8a',
       weight:1.8,
@@ -357,6 +383,19 @@ function renderPropCircles(){
     });
     circle.addTo(map);
     propCircles.push(circle);
+  }
+
+  // Draw normal district circles
+  SOMALIA_GEOJSON.features.forEach((feat,idx)=>{
+    const n = byIdx[idx];
+    if(!n) return;
+    makeCircle(feat.properties.cy, feat.properties.cx, n);
+  });
+
+  // Draw aggregated circles (Banadir etc.)
+  Object.entries(byAgg).forEach(([key, n])=>{
+    const [lat, lng] = DISTRICT_AGGREGATE[key];
+    makeCircle(lat, lng, n);
   });
 }
 
@@ -471,7 +510,7 @@ function applyFilters(){
     // Position level filter
     const pos = document.getElementById('fPosition').value;
     if(pos){
-      const pt = (g.position||'').toLowerCase();
+      const pt = (g.position||'').toLowerCase().trim();
       const pl = pos.toLowerCase();
       if(pl === 'other'){
         const named = ['national','regional','district','health facility'];
@@ -480,9 +519,14 @@ function applyFilters(){
         if(!pt.includes(pl)) return false;
       }
     }
-    // Gender filter
+    // Gender filter — case-insensitive, matches M/m/Male/male and F/f/Female/female
     const gdr = document.getElementById('fGender').value;
-    if(gdr && (g.gender||'').toUpperCase() !== gdr.toUpperCase()) return false;
+    if(gdr){
+      const gv = (g.gender||'').trim().toUpperCase();
+      const target = gdr.trim().toUpperCase();
+      // Match exact (M=M, F=F) or first letter (Male→M, Female→F)
+      if(!gv || (gv !== target && gv[0] !== target[0])) return false;
+    }
     return true;
   });
   renderMarkers(); renderPropCircles(); renderList();
