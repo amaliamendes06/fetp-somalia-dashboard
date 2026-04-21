@@ -332,23 +332,52 @@ function renderDistricts(){
 
 // For districts whose graduates all share a common parent name (e.g. "Banadir"),
 // aggregate them into one circle at a fixed centroid instead of per-sub-district
+// Any graduate whose district name contains one of these keys
+// gets aggregated into a single circle at the given [lat, lng]
 const DISTRICT_AGGREGATE = {
-  // district value in data  → [lat, lng, label]
-  'banadir':    [2.047, 45.318],
-  'mogadishu':  [2.047, 45.318],
+  'banadir':     [2.047, 45.318],
+  'mogadishu':   [2.047, 45.318],
+  'hodan':       [2.047, 45.318],
+  'karan':       [2.047, 45.318],
+  'madina':      [2.047, 45.318],
+  'wadajir':     [2.047, 45.318],
+  'shangani':    [2.047, 45.318],
+  'hamar':       [2.047, 45.318],
+  'waberi':      [2.047, 45.318],
+  'yaqshid':     [2.047, 45.318],
+  'heliwa':      [2.047, 45.318],
+  'shibis':      [2.047, 45.318],
+  'danyile':     [2.047, 45.318],
+  'kahda':       [2.047, 45.318],
+  'dharkenly':   [2.047, 45.318],
+  'hawal wadag': [2.047, 45.318],
+  'abdul aziz':  [2.047, 45.318],
+  'wardegly':    [2.047, 45.318],
+  'bondere':     [2.047, 45.318],
 };
 
+// Resolve district name to its aggregate key if it belongs to one
+function getAggregateKey(districtName){
+  const dn = (districtName||'').toLowerCase().trim();
+  for(const key of Object.keys(DISTRICT_AGGREGATE)){
+    if(dn === key || dn.includes(key) || key.includes(dn)) return key;
+  }
+  return null;
+}
+
 function buildAggregatedCounts(){
-  // Returns { key: { count, lat, lng } }
-  // key is either the shapefile feature idx (string) or a named aggregate key
   const arr = filtered;
-  const byIdx = {};   // idx → count (normal districts)
+  const byIdx = {};   // shapefile feature idx → count
   const byAgg = {};   // aggregate key → count (Banadir etc.)
 
   arr.forEach(g => {
-    const dn = (g.district||'').toLowerCase().trim();
-    if(DISTRICT_AGGREGATE[dn]){
-      byAgg[dn] = (byAgg[dn]||0) + 1;
+    const aggKey = getAggregateKey(g.district);
+    if(aggKey){
+      // Use the canonical first key that matches (always 'banadir' for Mogadishu area)
+      const canonKey = Object.keys(DISTRICT_AGGREGATE).find(k =>
+        (g.district||'').toLowerCase().trim().includes(k) || k.includes((g.district||'').toLowerCase().trim())
+      ) || aggKey;
+      byAgg[canonKey] = (byAgg[canonKey]||0) + 1;
     } else {
       const idx = findDistIdx(g.district);
       if(idx != null) byIdx[idx] = (byIdx[idx]||0) + 1;
