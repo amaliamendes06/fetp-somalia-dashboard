@@ -277,9 +277,11 @@ function renderStateBoundaries(){
 }
 
 // ── DISTRICT POLYGONS ─────────────────────────────────────────────────────────
-function buildDistrictCounts(){
+function buildDistrictCounts(source){
+  // source defaults to `filtered` so circles always reflect current filter state
+  const arr = source || filtered;
   const counts={};
-  graduates.forEach(g=>{
+  arr.forEach(g=>{
     const idx=findDistIdx(g.district);
     if(idx!=null) counts[idx]=(counts[idx]||0)+1;
   });
@@ -288,8 +290,7 @@ function buildDistrictCounts(){
 
 function renderDistricts(){
   polyLayers.forEach(l=>map.removeLayer(l));
-  propCircles.forEach(l=>map.removeLayer(l));
-  polyLayers=[]; propCircles=[];
+  polyLayers=[];
 
   const counts = buildDistrictCounts();
   const maxCount = Math.max(...Object.values(counts), 1);
@@ -322,30 +323,40 @@ function renderDistricts(){
 
 
 
-    // Proportional circle — fixed size classes
-    if(hasGrads){
-      const n = counts[idx];
-      // 5 size classes in metres
-      let radius;
-      if      (n === 1)         radius = 18000;
-      else if (n <= 4)          radius = 28000;
-      else if (n <= 7)          radius = 40000;
-      else if (n <= 10)         radius = 54000;
-      else                      radius = 70000;
+    // Proportional circles drawn separately in renderPropCircles()
+  });
+}
 
-      const circle = L.circle([p.cy, p.cx],{
-        radius,
-        color:'#1a4e8a',
-        weight:1.8,
-        opacity:0.9,
-        fillColor:'#3a8fd4',
-        fillOpacity:0.28,
-        interactive:false,
-        pane:'propPane',
-      });
-      circle.addTo(map);
-      propCircles.push(circle);
-    }
+
+// ── PROPORTIONAL CIRCLES ──────────────────────────────────────────────────────
+function renderPropCircles(){
+  propCircles.forEach(l=>map.removeLayer(l));
+  propCircles=[];
+  const counts = buildDistrictCounts(); // uses filtered
+  if(!Object.keys(counts).length) return;
+
+  SOMALIA_GEOJSON.features.forEach((feat,idx)=>{
+    const p = feat.properties;
+    const n = counts[idx];
+    if(!n) return;
+    let radius;
+    if      (n === 1) radius = 18000;
+    else if (n <= 4)  radius = 28000;
+    else if (n <= 7)  radius = 40000;
+    else if (n <= 10) radius = 54000;
+    else              radius = 70000;
+    const circle = L.circle([p.cy, p.cx],{
+      radius,
+      color:'#1a4e8a',
+      weight:1.8,
+      opacity:0.9,
+      fillColor:'#3a8fd4',
+      fillOpacity:0.28,
+      interactive:false,
+      pane:'propPane',
+    });
+    circle.addTo(map);
+    propCircles.push(circle);
   });
 }
 
@@ -474,7 +485,7 @@ function applyFilters(){
     if(gdr && (g.gender||'').toUpperCase() !== gdr.toUpperCase()) return false;
     return true;
   });
-  renderMarkers(); renderList();
+  renderMarkers(); renderPropCircles(); renderList();
 }
 
 ['fSearch','fCohort','fOrg','fActive','fCB','fPosition','fGender'].forEach(id=>{
@@ -513,7 +524,7 @@ function processFile(file){
       const newG=rows.map(parseRow).filter(Boolean);
       if(!newG.length){showStatus('No valid rows found. Check headers.','error');return;}
       graduates=[...graduates,...newG];
-      refreshSelectOptions(); applyFilters(); renderDistricts(); renderStateBoundaries(); renderStateLabels(); updateStats();
+      refreshSelectOptions(); applyFilters(); renderDistricts(); renderPropCircles(); renderStateBoundaries(); renderStateLabels(); updateStats();
       showStatus(`✓ Added ${newG.length} graduate${newG.length!==1?'s':''} — saving to Sheet…`, 'success');
       appendToSheet(newG);
     }catch(e){showStatus('Error: '+e.message,'error');}
@@ -643,7 +654,7 @@ async function loadFromSheet(){
     nextId = graduates.length + 1;
     showBanner(`✓ Loaded ${graduates.length} graduates from Google Sheets`, 'success');
     filtered = [...graduates];
-    renderDistricts(); renderStateBoundaries(); renderStateLabels();
+    renderDistricts(); renderPropCircles(); renderStateBoundaries(); renderStateLabels();
     renderMarkers(); renderList(); updateStats(); refreshSelectOptions();
   } catch(err) {
     showBanner('⚠ Could not load from Google Sheets: ' + err.message, 'error');
@@ -703,7 +714,7 @@ filtered=[...graduates];
 // Ensure hatch pattern exists before first render; retry after tiles load if needed
 map.whenReady(function(){
   setTimeout(function(){
-    renderDistricts(); renderStateBoundaries(); renderStateLabels();
+    renderDistricts(); renderPropCircles(); renderStateBoundaries(); renderStateLabels();
     renderMarkers(); renderList(); updateStats(); refreshSelectOptions();
     map.fitBounds([[-1.66,40.99],[11.99,51.41]],{padding:[10,10]});
     // Load live data from Google Sheets
