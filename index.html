@@ -72,7 +72,7 @@ select:focus, input[type="text"]:focus { border-color: var(--accent2); }
 .dist-tip { font-family: var(--mono); font-size: 11px; line-height: 1.6; }
 .state-label {
   font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #1a1a1a;
   text-transform: uppercase;
@@ -467,22 +467,57 @@ function selectGrad(id){
 
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function updateStats(){
-  const active=graduates.filter(g=>(g.active||'').toLowerCase()==='yes').length;
-  const covered=new Set(graduates.map(g=>{const i=findDistIdx(g.district);return i!=null?i:null}).filter(x=>x!=null)).size;
-  document.getElementById('sTotal').textContent=graduates.length;
+  // Use filtered when active, otherwise full graduates list
+  const src = filtered.length < graduates.length ? filtered : graduates;
+  const active=src.filter(g=>(g.active||'').toLowerCase()==='yes').length;
+  // Coverage: count distinct districts in filtered set
+  const coveredSet=new Set();
+  src.forEach(g=>{const i=findDistIdx(g.district);if(i!=null)coveredSet.add(i);});
+  // Also count Banadir as 1 if any Banadir grad is present
+  const hasBanadir=src.some(g=>AGGREGATE_IDX[findDistIdx(g.district)]==='Banadir');
+  const covered=coveredSet.size;
+  const totalDistricts=SOMALIA_GEOJSON.features.length;
+  document.getElementById('sTotal').textContent=src.length;
   document.getElementById('sActive').textContent=active;
   document.getElementById('sDistricts').textContent=covered;
-  document.getElementById('sGaps').textContent=SOMALIA_GEOJSON.features.length-covered;
+  document.getElementById('sGaps').textContent=totalDistricts-covered;
 }
 
 // ── FILTERS ───────────────────────────────────────────────────────────────────
 function refreshSelectOptions(){
   const cs=document.getElementById('fCohort'), os=document.getElementById('fOrg');
   const cv=cs.value, ov=os.value;
-  const cohorts=[...new Set(graduates.map(g=>g.cohort).filter(Boolean))].sort();
-  const orgs=[...new Set(graduates.map(g=>g.organization).filter(Boolean))].sort();
-  cs.innerHTML='<option value="">All Cohorts</option>'+cohorts.map(c=>`<option value="${c}"${c===cv?' selected':''}>${c}</option>`).join('');
-  os.innerHTML='<option value="">All Organizations</option>'+orgs.map(o=>`<option value="${o}"${o===ov?' selected':''}>${o}</option>`).join('');
+
+  // Get current filter values (excluding cohort and org themselves)
+  const s=document.getElementById('fSearch').value.toLowerCase();
+  const ac=document.getElementById('fActive').value;
+  const cb=document.getElementById('fCB').value;
+  const pos=document.getElementById('fPosition').value;
+  const gdr=document.getElementById('fGender').value;
+
+  // Base filter without cohort/org constraints
+  function baseMatch(g){
+    if(s && !`${g.fullName} ${g.district} ${g.city} ${g.organization}`.toLowerCase().includes(s)) return false;
+    if(ac==='yes' && (g.active||'').toLowerCase()!=='yes') return false;
+    if(ac==='no' && (g.active||'').toLowerCase()==='yes') return false;
+    if(cb==='yes' && (g.crossBorder||'').toLowerCase()!=='yes') return false;
+    if(cb==='no' && (g.crossBorder||'').toLowerCase()==='yes') return false;
+    if(pos){
+      const pt=(g.position||'').toLowerCase().trim(), pl=pos.toLowerCase();
+      if(pl==='other'){ const named=['national','regional','district','health facility']; if(named.some(n=>pt.includes(n))) return false; }
+      else if(!pt.includes(pl)) return false;
+    }
+    if(gdr){ const gv=(g.gender||'').trim().toUpperCase(), tgt=gdr.trim().toUpperCase(); if(!gv||(gv!==tgt&&gv[0]!==tgt[0])) return false; }
+    return true;
+  }
+
+  // Cohorts available = base match + current org filter
+  const cohortsAvail=[...new Set(graduates.filter(g=>baseMatch(g)&&(!ov||g.organization===ov)).map(g=>g.cohort).filter(Boolean))].sort();
+  // Orgs available = base match + current cohort filter
+  const orgsAvail=[...new Set(graduates.filter(g=>baseMatch(g)&&(!cv||g.cohort===cv)).map(g=>g.organization).filter(Boolean))].sort();
+
+  cs.innerHTML='<option value="">All Cohorts</option>'+cohortsAvail.map(c=>`<option value="${c}"${c===cv?' selected':''}>${c}</option>`).join('');
+  os.innerHTML='<option value="">All Organizations</option>'+orgsAvail.map(o=>`<option value="${o}"${o===ov?' selected':''}>${o}</option>`).join('');
 }
 
 function applyFilters(){
@@ -521,7 +556,7 @@ function applyFilters(){
     }
     return true;
   });
-  renderMarkers(); renderPropCircles(); renderList();
+  refreshSelectOptions(); renderMarkers(); renderPropCircles(); renderList(); updateStats();
 }
 
 ['fSearch','fCohort','fOrg','fActive','fCB','fPosition','fGender'].forEach(id=>{
